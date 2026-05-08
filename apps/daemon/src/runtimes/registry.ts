@@ -1,3 +1,4 @@
+import { bobAgentDef } from './defs/bob.js';
 import { claudeAgentDef } from './defs/claude.js';
 import { codexAgentDef } from './defs/codex.js';
 import { devinAgentDef } from './defs/devin.js';
@@ -17,6 +18,7 @@ import { deepseekAgentDef } from './defs/deepseek.js';
 import type { RuntimeAgentDef } from './types.js';
 
 export const AGENT_DEFS: RuntimeAgentDef[] = [
+  bobAgentDef,
   claudeAgentDef,
   codexAgentDef,
   devinAgentDef,

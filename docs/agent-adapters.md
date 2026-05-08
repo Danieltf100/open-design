@@ -188,11 +188,35 @@ The adapter declares which strategy to use via `capabilities().nativeSkillLoadin
 - **Gotcha:** Gemini's tool-use format is distinct; we translate our file-write tool to its
   `file_tool` equivalent when that feature is implemented.
 
-### 5.7 OpenCode / OpenClaw
+### 5.7 Bob CLI
+
+**Binary**: `bob`
+**Stream Format**: `bob-stream-json` (Bob's `--output-format stream-json`)
+**Prompt Delivery**: stdin
+**Version Detection**: `bob --version`
+
+**Key Features**:
+- Automatic model selection (no `--model` flag - Bob chooses the best model internally)
+- Structured JSON stream output via `--output-format stream-json`
+- Non-interactive mode via `--yolo` flag (auto-approves all actions)
+- Directory access control via `--include-directories` flag
+- Supports skills and design-systems injection through extra directories
+
+**Implementation Notes**:
+- Bob does NOT accept `--model` flag - it automatically selects the optimal model for each task
+- Prompts delivered via stdin (Bob reads from stdin when `-p` flag is omitted)
+- Stdin delivery avoids Windows ENAMETOOLONG error (CreateProcess ~32KB limit) with long prompts containing skills and design-systems
+- Uses `--output-format stream-json` for structured event streaming
+- `--yolo` flag enables non-interactive mode (equivalent to other CLIs' auto-approve flags)
+- Extra allowed directories passed via `--include-directories` (not `--allowed-dir`)
+- **Custom stream format:** Bob uses `streamFormat: 'bob-stream-json'` with a dedicated parser in `apps/daemon/src/bob-stream.ts`. Unlike other CLIs that use `json-event-stream` or `acp-json-rpc`, Bob emits its own JSON line-delimited format with event types: `init` (mapped to `status`), `message` (mapped to `text_delta`), `tool_use` (mapped to `tool_use`), `tool_result` (mapped to `tool_result`), and `result` (mapped to `usage` with token stats and duration)
+
+
+### 5.8 OpenCode / OpenClaw
 
 - Less-matured CLIs. Targeting P2. Expect bumps; adapter implementations will likely be the thinnest possible "shell out, parse output, synthesize events" approach.
 
-### 5.8 GitHub Copilot CLI
+### 5.9 GitHub Copilot CLI
 
 - Invocation: `copilot -p "<prompt>" --allow-all-tools --output-format json --add-dir <skills> --add-dir <design-systems>`. `--allow-all-tools` is mandatory in non-interactive mode — without it the CLI blocks waiting for human approval on every tool call. Unlike Codex (where `exec` is a dedicated headless subcommand with auto-approve baked in) or Claude Code (which inherits its permission policy from `~/.claude/settings.json`), Copilot's `-p` mode always prompts unless this flag is passed explicitly. `--add-dir` (repeatable) widens the path-level sandbox so Copilot can read skill seeds and design-system specs that live outside the project cwd.
 - Streaming: `--output-format json` emits JSONL with the same expressive shape as Claude Code's stream-json (`assistant.reasoning_delta`, `assistant.message_delta`, `tool.execution_start/complete`, `result`). `apps/daemon/src/copilot-stream.ts` maps these onto the same UI events as `claude-stream.ts`.
@@ -200,7 +224,7 @@ The adapter declares which strategy to use via `capabilities().nativeSkillLoadin
 - Surgical edits: dedicated `edit` tool.
 - Detection assumes Copilot is already authenticated, via one of: `copilot login` (subcommand, OAuth device flow), the interactive `/login` slash command inside `copilot` with no args.
 
-### 5.9 Qoder CLI
+### 5.10 Qoder CLI
 
 - Invocation: `qodercli -p --output-format stream-json --permission-mode bypass_permissions --cwd <dir> [--model <id>] --add-dir <absolute-skills-dir> --add-dir <absolute-design-systems-dir>`, with the composed prompt delivered over stdin. Print mode exits after the turn, which fits the daemon's one-request chat lifecycle. Qoder is currently text-only in OD; `_imagePaths` are intentionally ignored because Qoder CLI does not expose a supported multimodal flag for this adapter path yet.
 - Streaming: `--output-format stream-json` emits JSONL records such as `system/init`, `assistant`, and `result`. `apps/daemon/src/qoder-stream.ts` maps assistant content blocks to text deltas, maps assistant errors without text to typed error events, and preserves result usage, model usage, cost, duration, stop reason, and unknown records as raw events.
@@ -209,7 +233,7 @@ The adapter declares which strategy to use via `capabilities().nativeSkillLoadin
 - Permission: `--permission-mode bypass_permissions` avoids headless approval prompts in the web UI. Users should treat this as the same trust posture as running Qoder directly with that flag in the selected project directory.
 - **Gotcha:** Detection only proves `qodercli --version` can run. Qoder authentication and account scope remain owned by Qoder CLI, with credentials read from Qoder's `~/.qoder/config.json`; the daemon surfaces stderr/stdout failures from the spawned run instead of running login or editing Qoder config.
 
-### 5.11 Pi
+### 5.12 Pi
 
 - Invocation: `pi --mode rpc [--model <id>] [--thinking <level>] [--append-system-prompt <dir> …]`, with the composed prompt delivered over stdin via JSON-RPC. The daemon sends a `prompt` command (optionally with `images` for multimodal input) and pi streams back typed events until `agent_end`. Pi's RPC process stays alive after `agent_end` (designed for multi-prompt sessions); the daemon closes stdin and SIGTERMs after a grace period since `/api/chat` is single-shot.
 - Streaming: `pi-rpc` JSON-RPC over stdio. Events include `agent_start`, `turn_start/end`, `message_update` (text deltas, thinking deltas, tool calls), `tool_execution_start/end`, `compaction_start`, `auto_retry_start/end`, `extension_error`. `apps/daemon/src/pi-rpc.ts` maps these onto the same UI event set as `claude-stream.js` / `copilot-stream.js` / `acp.js`. Error events from `extension_error` and exhausted `auto_retry_end` are routed through `sendAgentEvent` so the daemon's empty-output guard and `agentStreamError` flag apply (same path as qoder-stream-json and json-event-stream after issue #691).
@@ -220,7 +244,7 @@ The adapter declares which strategy to use via `capabilities().nativeSkillLoadin
 - Extension UI: auto-resolved. pi's RPC protocol can request user dialogs (`select`, `confirm`, `input`, `editor`) and fire-and-forget notifications (`setStatus`, `setWidget`, `notify`, `setTitle`, `set_editor_text`). Dialog methods are auto-approved (confirm → true, select → first option) and fire-and-forget methods are silently consumed because the web UI has no surface for them.
 - **Gotcha:** pi's RPC `prompt` response is asynchronous — `success: true` only means the prompt was accepted, not that the agent finished. Agent failures after acceptance surface through the normal event stream (`extension_error`, `auto_retry_end` with `success: false`) and the empty-output guard.
 
-### 5.10 DeepSeek TUI
+### 5.11 DeepSeek TUI
 
 - Invocation: `deepseek exec --auto [--model <id>] "<prompt>"`. The `deepseek` dispatcher owns the `exec` / `--auto` subcommands and delegates to a sibling `deepseek-tui` runtime binary at exec time; upstream documents both binaries as required (the npm and cargo paths install them together). We only probe the dispatcher — `deepseek-tui` on its own doesn't accept this argv shape, so advertising it as a fallback would surface the agent as available but fail on the first chat run. A future revision could teach resolution + buildArgs which binary was selected and emit a verified `deepseek-tui` invocation, with a regression test exercising that path.
 - Streaming: plain text deltas to stdout in non-`--json` mode (tool-call notifications go to stderr). Skipping `--json` is intentional — `deepseek exec --json` batches the entire run into one trailing summary object instead of streaming, which would freeze the chat UI until end-of-turn.

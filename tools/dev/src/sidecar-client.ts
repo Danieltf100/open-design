@@ -51,7 +51,7 @@ export async function inspectWebRuntime(runtime: AppRuntimeLookup, timeoutMs = 8
   }
 }
 
-export async function waitForWebRuntime(runtime: AppRuntimeLookup, timeoutMs = 35000): Promise<WebStatusSnapshot> {
+export async function waitForWebRuntime(runtime: AppRuntimeLookup, timeoutMs = 60000): Promise<WebStatusSnapshot> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const snapshot = await inspectWebRuntime(runtime, 800);

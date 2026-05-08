@@ -63,6 +63,7 @@ import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
 import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
+import { createBobStreamHandler } from './bob-stream.js';
 import { loadCritiqueConfigFromEnv } from './critique/config.js';
 import { reconcileStaleRuns } from './critique/persistence.js';
 import { runOrchestrator } from './critique/orchestrator.js';
@@ -4047,6 +4048,11 @@ export async function startServer({
       });
       child.stdout.on('data', (chunk) => claude.feed(chunk));
       child.on('close', () => claude.flush());
+    } else if (def.streamFormat === 'bob-stream-json') {
+      trackingSubstantiveOutput = true;
+      const bob = createBobStreamHandler(sendAgentEvent);
+      child.stdout.on('data', (chunk) => bob.feed(chunk));
+      child.on('close', () => bob.flush());
     } else if (def.streamFormat === 'qoder-stream-json') {
       trackingSubstantiveOutput = true;
       const qoder = createQoderStreamHandler(sendAgentEvent);

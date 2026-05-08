@@ -43,7 +43,37 @@ function qoderGlyph(size: number) {
   );
 }
 
+function bobGlyph(size: number) {
+  // Minimalist robot face — two circular eyes and a smile
+  const c = size / 2;
+  const eyeOff = size * 0.20; // Eye horizontal offset (increased for wider spacing)
+  const eyeR = size * 0.08; // Eye radius
+  const mouthW = size * 0.15; // Mouth width (slightly smaller for centered look)
+  const mouthY = c + size * 0.15; // Mouth vertical position (moved down slightly)
+
+  return (
+    <g fill="#ffffff">
+      <circle cx={c - eyeOff} cy={c - size * 0.05} r={eyeR} />
+      <circle cx={c + eyeOff} cy={c - size * 0.05} r={eyeR} />
+      
+      <path
+        d={`M ${c - mouthW} ${mouthY} Q ${c} ${mouthY + size * 0.08}, ${c + mouthW} ${mouthY}`}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={size * 0.06}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
 const VISUALS: Record<string, Visual> = {
+  // Bob — friendly smile
+  bob: {
+    bg: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    fg: '#ffffff',
+    glyph: bobGlyph,
+  },
   // Claude — warm Anthropic terracotta with sparkle.
   claude: {
     bg: 'linear-gradient(135deg, #d97757 0%, #b85a3b 100%)',
